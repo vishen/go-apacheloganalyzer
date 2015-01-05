@@ -92,7 +92,7 @@ func splitWithPosition(s, sep string, position int) string {
 func _analyzeFile(file_reader io.Reader) {
 
 	r := bufio.NewReader(file_reader)
-	var url, path, ipaddress, line string
+	var url, path, ipaddress, line, http_status_code string
 	var info Information
 	// var _line []byte
 	// var err error.Error
@@ -110,6 +110,11 @@ func _analyzeFile(file_reader io.Reader) {
 		path = splitWithPosition(url, " ", 1)
 		ipaddress = splitWithPosition(line, " ", 0)
 
+		// Only allow requests that returned a 200
+		http_status_code = splitWithPosition(line, " ", 8)
+		if http_status_code != "200" {
+			continue
+		}
 		info = Information{url: url, path: path, ipaddress: ipaddress}
 		// log.Println(info)
 		statistics.addInformation(info)
