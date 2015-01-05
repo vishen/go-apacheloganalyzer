@@ -22,22 +22,40 @@ type Information struct {
 }
 
 type Statistics struct {
-	data []Information
+	// data       []Information
+	search_for     []string
+	found_searches map[string]int
+}
+
+func NewStatistics(search_for []string) Statistics {
+	s := Statistics{search_for: search_for}
+	s.found_searches = make(map[string]int, len(search_for))
+	return s
 }
 
 func (s *Statistics) addInformation(info Information) {
-	s.data = append(s.data, info)
+	// s.data = append(s.data, info)
+
+	for _, sf := range s.search_for {
+		if strings.Contains(info.path, sf) {
+			f := s.found_searches[sf]
+			f += 1
+			s.found_searches[sf] = f
+		}
+	}
 }
 
 func (s *Statistics) pathCount(path string) int {
-	total := 0
-	for _, info := range s.data {
-		if strings.Contains(info.path, path) {
-			total += 1
-		}
-	}
+	// total := 0
+	// for _, info := range s.data {
+	// 	if strings.Contains(info.path, path) {
+	// 		total += 1
+	// 	}
+	// }
 
-	return total
+	// return total
+
+	return s.found_searches[path]
 }
 
 func findFiles(dir string) []string {
@@ -128,10 +146,10 @@ func main() {
 
 	search_for := strings.Split(*_search_for, ",")
 
+	statistics = NewStatistics(search_for)
+
 	log.Printf("Root folder: %s\n", root_folder)
 	log.Printf("Log Type: %s\n", log_type)
-
-	statistics = Statistics{}
 
 	_ = findFiles(root_folder)
 
