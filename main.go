@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"flag"
+	"io"
 	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -51,7 +54,7 @@ func findFiles(dir string) []string {
 		if strings.Contains(f.Name(), log_type) {
 			fullpath := filepath.Join(root_folder, f.Name())
 			found_files = append(found_files, fullpath)
-			log.Printf("Found associated file: %s", fullpath)
+			log.Printf("Found associated file: %s - analyzing...", fullpath)
 			analyzeFile(fullpath)
 		}
 	}
@@ -68,20 +71,29 @@ func splitWithPosition(s, sep string, position int) string {
 	return splitted[position]
 }
 
-func _analyzeFile(file_content []byte) {
+func _analyzeFile(file_reader io.Reader) {
 
-	// log.Printf("%s\n", file_content)
-	for _, line := range strings.Split(string(file_content), "\n") {
+	r := bufio.NewReader(file_reader)
+	var url, path, ipaddress, line string
+	var info Information
+	// var _line []byte
+	// var err error.Error
+	for {
+		_line, _, err := r.ReadLine()
+		if err != nil {
+			break
+		}
+		line = string(_line)
 		if line == "" {
 			continue
 		}
 
-		url := splitWithPosition(line, "\"", 1)
-		path := splitWithPosition(url, " ", 1)
-		ipaddress := splitWithPosition(line, " ", 0)
+		url = splitWithPosition(line, "\"", 1)
+		path = splitWithPosition(url, " ", 1)
+		ipaddress = splitWithPosition(line, " ", 0)
 
-		info := Information{url: url, path: path, ipaddress: ipaddress}
-		log.Println(info)
+		info = Information{url: url, path: path, ipaddress: ipaddress}
+		// log.Println(info)
 		statistics.addInformation(info)
 	}
 }
@@ -90,14 +102,15 @@ func analyzeFile(filename string) {
 	// var file_content []byte
 	switch filepath.Ext(filename) {
 	case ".gz":
-		log.Fatal("[Error] Found gzip file - please unzip files.")
+		log.Println("[Error] Found gzip file - please unzip files.")
 	default:
-		file_content, err := ioutil.ReadFile(filename)
+		// file_content, err := ioutil.ReadFile(filename)
+		file, err := os.Open(filename)
 
 		if err != nil {
 			log.Printf("[Error] %s\n", err)
 		} else {
-			_analyzeFile(file_content)
+			_analyzeFile(file)
 		}
 	}
 }
