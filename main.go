@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 var root_folder string
@@ -25,11 +26,14 @@ type Statistics struct {
 	// data       []Information
 	search_for     []string
 	found_searches map[string]int
+
+	mutex *sync.Mutex
 }
 
 func NewStatistics(search_for []string) Statistics {
 	s := Statistics{search_for: search_for}
 	s.found_searches = make(map[string]int, len(search_for))
+	s.mutex = &sync.Mutex{}
 	return s
 }
 
@@ -38,9 +42,11 @@ func (s *Statistics) addInformation(info Information) {
 
 	for _, sf := range s.search_for {
 		if strings.Contains(info.path, sf) {
+			s.mutex.Lock()
 			f := s.found_searches[sf]
 			f += 1
 			s.found_searches[sf] = f
+			s.mutex.Unlock()
 		}
 	}
 }
@@ -72,11 +78,23 @@ func findFiles(dir string) []string {
 		if strings.Contains(f.Name(), log_type) {
 			fullpath := filepath.Join(root_folder, f.Name())
 			found_files = append(found_files, fullpath)
-			log.Printf("Found associated file: %s - analyzing...", fullpath)
-			analyzeFile(fullpath)
+			// log.Printf("Found associated file: %s - analyzing...", fullpath)
+
 		}
 	}
 
+	log.Println(found_files)
+	// Add a WaitGroup so we can run each file
+	// asyncrounously
+	var wg sync.WaitGroup
+	wg.Add(len(found_files))
+	for _, fullpath := range found_files {
+		go func(filename string) {
+			analyzeFile(filename)
+			wg.Done()
+		}(fullpath)
+	}
+	wg.Wait()
 	return found_files
 }
 
@@ -98,6 +116,7 @@ func _analyzeFile(file_reader io.Reader) {
 	// var err error.Error
 	for {
 		_line, _, err := r.ReadLine()
+		// log.Println(_line)
 		if err != nil {
 			break
 		}
@@ -113,6 +132,7 @@ func _analyzeFile(file_reader io.Reader) {
 		// Only allow requests that returned a 200
 		http_status_code = splitWithPosition(line, " ", 8)
 		if http_status_code != "200" {
+			// log.Println("Ignoring:", http_status_code)
 			continue
 		}
 		info = Information{url: url, path: path, ipaddress: ipaddress}
@@ -129,7 +149,7 @@ func analyzeFile(filename string) {
 	default:
 		// file_content, err := ioutil.ReadFile(filename)
 		file, err := os.Open(filename)
-
+		log.Println(filename)
 		if err != nil {
 			log.Printf("[Error] %s\n", err)
 		} else {
