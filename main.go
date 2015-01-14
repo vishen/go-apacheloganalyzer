@@ -22,18 +22,32 @@ type Information struct {
 	ipaddress string
 }
 
+type FoundSearch struct {
+	path  string
+	count int
+	mutex *sync.Mutex
+}
+
+func NewFoundSearch(path string) *FoundSearch {
+	return &FoundSearch{path: path, count: 0, mutex: &sync.Mutex{}}
+}
+
+func (fs *FoundSearch) incr() {
+	fs.mutex.Lock()
+	fs.count += 1
+	fs.mutex.Unlock()
+}
+
 type Statistics struct {
 	// data       []Information
 	search_for     []string
-	found_searches map[string]int
-
-	mutex *sync.Mutex
+	found_searches map[string]*FoundSearch
 }
 
 func NewStatistics(search_for []string) Statistics {
 	s := Statistics{search_for: search_for}
-	s.found_searches = make(map[string]int, len(search_for))
-	s.mutex = &sync.Mutex{}
+	s.found_searches = make(map[string]*FoundSearch, len(search_for))
+	// s.mutex = &sync.Mutex{}
 	return s
 }
 
@@ -42,11 +56,14 @@ func (s *Statistics) addInformation(info Information) {
 
 	for _, sf := range s.search_for {
 		if strings.Contains(info.path, sf) {
-			s.mutex.Lock()
-			f := s.found_searches[sf]
-			f += 1
-			s.found_searches[sf] = f
-			s.mutex.Unlock()
+			var f *FoundSearch
+			var ok bool
+			f, ok = s.found_searches[sf]
+			if !ok {
+				f = NewFoundSearch(sf)
+				s.found_searches[sf] = f
+			}
+			f.incr()
 		}
 	}
 }
@@ -61,7 +78,7 @@ func (s *Statistics) pathCount(path string) int {
 
 	// return total
 
-	return s.found_searches[path]
+	return s.found_searches[path].count
 }
 
 func findFiles(dir string) []string {
