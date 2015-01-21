@@ -17,9 +17,10 @@ var log_type string
 var statistics Statistics
 
 type Information struct {
-	url       string
-	path      string
-	ipaddress string
+	url            string
+	path           string
+	ipaddress      string
+	forwarded_from string
 }
 
 type FoundSearch struct {
@@ -40,12 +41,13 @@ func (fs *FoundSearch) incr() {
 
 type Statistics struct {
 	// data       []Information
+	forwarded_from string
 	search_for     []string
 	found_searches map[string]*FoundSearch
 }
 
-func NewStatistics(search_for []string) Statistics {
-	s := Statistics{search_for: search_for}
+func NewStatistics(search_for []string, forwarded_from string) Statistics {
+	s := Statistics{search_for: search_for, forwarded_from: forwarded_from}
 	s.found_searches = make(map[string]*FoundSearch, len(search_for))
 	// s.mutex = &sync.Mutex{}
 	return s
@@ -53,6 +55,10 @@ func NewStatistics(search_for []string) Statistics {
 
 func (s *Statistics) addInformation(info Information) {
 	// s.data = append(s.data, info)
+
+	if s.forwarded_from != "" && !strings.Contains(info.forwarded_from, s.forwarded_from) {
+		return
+	}
 
 	for _, sf := range s.search_for {
 		if strings.Contains(info.path, sf) {
@@ -127,10 +133,11 @@ func splitWithPosition(s, sep string, position int) string {
 func _analyzeFile(file_reader io.Reader) {
 
 	r := bufio.NewReader(file_reader)
-	var url, path, ipaddress, line, http_status_code string
+	var url, path, ipaddress, line, http_status_code, forwarded_from string
 	var info Information
 	// var _line []byte
 	// var err error.Error
+	// var wg sync.WaitGroup
 	for {
 		_line, _, err := r.ReadLine()
 		// log.Println(_line)
@@ -148,11 +155,12 @@ func _analyzeFile(file_reader io.Reader) {
 
 		// Only allow requests that returned a 200
 		http_status_code = splitWithPosition(line, " ", 8)
+		forwarded_from = splitWithPosition(line, " ", 10)
 		if http_status_code != "200" {
 			// log.Println("Ignoring:", http_status_code)
 			continue
 		}
-		info = Information{url: url, path: path, ipaddress: ipaddress}
+		info = Information{url: url, path: path, ipaddress: ipaddress, forwarded_from: forwarded_from}
 		// log.Println(info)
 		statistics.addInformation(info)
 	}
@@ -183,12 +191,13 @@ func init() {
 func main() {
 
 	_search_for := flag.String("search_for", "", "")
+	forwarded_from := flag.String("forwarded_from", "", "")
 
 	flag.Parse()
 
 	search_for := strings.Split(*_search_for, ",")
 
-	statistics = NewStatistics(search_for)
+	statistics = NewStatistics(search_for, *forwarded_from)
 
 	log.Printf("Root folder: %s\n", root_folder)
 	log.Printf("Log Type: %s\n", log_type)
