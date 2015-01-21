@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"flag"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -21,21 +22,24 @@ type Information struct {
 	path           string
 	ipaddress      string
 	forwarded_from string
+	date_string    string
 }
 
 type FoundSearch struct {
-	path  string
-	count int
-	mutex *sync.Mutex
+	path       string
+	date_count map[string]int
+	mutex      *sync.Mutex
 }
 
 func NewFoundSearch(path string) *FoundSearch {
-	return &FoundSearch{path: path, count: 0, mutex: &sync.Mutex{}}
+	return &FoundSearch{path: path, mutex: &sync.Mutex{}, date_count: make(map[string]int)}
 }
 
-func (fs *FoundSearch) incr() {
+func (fs *FoundSearch) incr(date_string string) {
 	fs.mutex.Lock()
-	fs.count += 1
+	count, _ := fs.date_count[date_string]
+	count += 1
+	fs.date_count[date_string] = count
 	fs.mutex.Unlock()
 }
 
@@ -69,22 +73,25 @@ func (s *Statistics) addInformation(info Information) {
 				f = NewFoundSearch(sf)
 				s.found_searches[sf] = f
 			}
-			f.incr()
+			f.incr(info.date_string)
 		}
 	}
 }
 
-func (s *Statistics) pathCount(path string) int {
+func (s *Statistics) printPathCount(path string) {
 	// total := 0
 	// for _, info := range s.data {
 	// 	if strings.Contains(info.path, path) {
 	// 		total += 1
 	// 	}
 	// }
-
 	// return total
-
-	return s.found_searches[path].count
+	for _, fs := range s.found_searches {
+		for date, count := range fs.date_count {
+			fmt.Printf("%s: [%s] %d\n", path, date, count)
+		}
+	}
+	return
 }
 
 func findFiles(dir string) []string {
@@ -133,7 +140,7 @@ func splitWithPosition(s, sep string, position int) string {
 func _analyzeFile(file_reader io.Reader) {
 
 	r := bufio.NewReader(file_reader)
-	var url, path, ipaddress, line, http_status_code, forwarded_from string
+	var url, path, ipaddress, line, http_status_code, forwarded_from, date_string string
 	var info Information
 	// var _line []byte
 	// var err error.Error
@@ -160,7 +167,9 @@ func _analyzeFile(file_reader io.Reader) {
 			// log.Println("Ignoring:", http_status_code)
 			continue
 		}
-		info = Information{url: url, path: path, ipaddress: ipaddress, forwarded_from: forwarded_from}
+		date_string = splitWithPosition(line, "[", 1)[0:11]
+		info = Information{url: url, path: path, ipaddress: ipaddress,
+			forwarded_from: forwarded_from, date_string: date_string}
 		// log.Println(info)
 		statistics.addInformation(info)
 	}
@@ -208,7 +217,8 @@ func main() {
 		if sf == "" {
 			continue
 		}
-		log.Printf("%s: %d", sf, statistics.pathCount(sf))
+		statistics.printPathCount(sf)
+		// log.Printf("%s: %d", sf, statistics.pathCount(sf))
 	}
 
 }
