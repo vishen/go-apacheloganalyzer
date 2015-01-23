@@ -78,10 +78,12 @@ type Statistics struct {
 	found_searches map[string]*FoundSearch
 
 	total_count int
+
+	mutex *sync.Mutex
 }
 
 func NewStatistics(search_for []string, forwarded_from string) Statistics {
-	s := Statistics{search_for: search_for, forwarded_from: forwarded_from, total_count: 0}
+	s := Statistics{search_for: search_for, forwarded_from: forwarded_from, total_count: 0, mutex: &sync.Mutex{}}
 	s.found_searches = make(map[string]*FoundSearch, len(search_for))
 	// s.mutex = &sync.Mutex{}
 	return s
@@ -100,8 +102,10 @@ func (s *Statistics) addInformation(info Information) {
 			var ok bool
 			f, ok = s.found_searches[sf]
 			if !ok {
+				s.mutex.Lock()
 				f = NewFoundSearch(sf)
 				s.found_searches[sf] = f
+				s.mutex.Unlock()
 			}
 			f.incr(info.date_string)
 		}
