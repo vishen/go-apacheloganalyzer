@@ -9,13 +9,37 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 var root_folder string
 var log_type string
 var statistics Statistics
+
+const (
+	DATE_FORMAT string = "02/Jan/2006"
+)
+
+// Define us a type so we can sort it
+type TimeSlice []time.Time
+
+// Forward request for length
+func (p TimeSlice) Len() int {
+	return len(p)
+}
+
+// Define compare
+func (p TimeSlice) Less(i, j int) bool {
+	return p[i].Before(p[j])
+}
+
+// Define swap over an array
+func (p TimeSlice) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
 
 type Information struct {
 	url            string
@@ -27,19 +51,23 @@ type Information struct {
 
 type FoundSearch struct {
 	path       string
-	date_count map[string]int
+	date_count map[time.Time]int
 	mutex      *sync.Mutex
 }
 
 func NewFoundSearch(path string) *FoundSearch {
-	return &FoundSearch{path: path, mutex: &sync.Mutex{}, date_count: make(map[string]int)}
+	return &FoundSearch{path: path, mutex: &sync.Mutex{}, date_count: make(map[time.Time]int)}
 }
 
 func (fs *FoundSearch) incr(date_string string) {
+	t, err := time.Parse(DATE_FORMAT, date_string)
+	if err != nil {
+		log.Fatal(err)
+	}
 	fs.mutex.Lock()
-	count, _ := fs.date_count[date_string]
+	count, _ := fs.date_count[t]
 	count += 1
-	fs.date_count[date_string] = count
+	fs.date_count[t] = count
 	fs.mutex.Unlock()
 }
 
@@ -48,10 +76,12 @@ type Statistics struct {
 	forwarded_from string
 	search_for     []string
 	found_searches map[string]*FoundSearch
+
+	total_count int
 }
 
 func NewStatistics(search_for []string, forwarded_from string) Statistics {
-	s := Statistics{search_for: search_for, forwarded_from: forwarded_from}
+	s := Statistics{search_for: search_for, forwarded_from: forwarded_from, total_count: 0}
 	s.found_searches = make(map[string]*FoundSearch, len(search_for))
 	// s.mutex = &sync.Mutex{}
 	return s
@@ -79,19 +109,26 @@ func (s *Statistics) addInformation(info Information) {
 }
 
 func (s *Statistics) printPathCount(path string) {
-	// total := 0
-	// for _, info := range s.data {
-	// 	if strings.Contains(info.path, path) {
-	// 		total += 1
-	// 	}
-	// }
-	// return total
+
 	for _, fs := range s.found_searches {
-		for date, count := range fs.date_count {
-			fmt.Printf("%s: [%s] %d\n", path, date, count)
+
+		var keys TimeSlice
+		for k := range fs.date_count {
+			keys = append(keys, k)
+		}
+
+		sort.Sort(keys)
+		for _, date := range keys {
+			count, _ := fs.date_count[date]
+			s.total_count += count
+			fmt.Printf("%s: [%s] %d\n", path, date.Format(DATE_FORMAT), count)
 		}
 	}
 	return
+}
+
+func (s *Statistics) printTotal() {
+	fmt.Println("Total: ", s.total_count)
 }
 
 func findFiles(dir string) []string {
@@ -220,5 +257,7 @@ func main() {
 		statistics.printPathCount(sf)
 		// log.Printf("%s: %d", sf, statistics.pathCount(sf))
 	}
+
+	statistics.printTotal()
 
 }
