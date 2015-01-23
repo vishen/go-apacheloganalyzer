@@ -114,21 +114,18 @@ func (s *Statistics) addInformation(info Information) {
 
 func (s *Statistics) printPathCount(path string) {
 	var keys TimeSlice
-	for _, fs := range s.found_searches {
+	fs := s.found_searches[path]
 
-		keys = TimeSlice{}
-		for k := range fs.date_count {
-			keys = append(keys, k)
-		}
+	keys = TimeSlice{}
+	for k := range fs.date_count {
+		keys = append(keys, k)
+	}
 
-		sort.Sort(keys)
-		fmt.Println(keys)
-		fmt.Println()
-		// for _, date := range keys {
-		// 	count, _ := fs.date_count[date]
-		// 	s.total_count += count
-		// 	fmt.Printf("%s: [%s] %d\n", path, date.Format(DATE_FORMAT), count)
-		// }
+	sort.Sort(keys)
+	for _, date := range keys {
+		count, _ := fs.date_count[date]
+		s.total_count += count
+		fmt.Printf("%s: [%s] %d\n", path, date.Format(DATE_FORMAT), count)
 	}
 	return
 }
