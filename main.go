@@ -122,8 +122,8 @@ func (s *Statistics) printPathCount(path string) {
 		}
 
 		sort.Sort(keys)
-		fmt.Println(keys)
-		fmt.Println()
+		// fmt.Println(keys)
+		// fmt.Println()
 		for _, date := range keys {
 			count, _ := fs.date_count[date]
 			s.total_count += count
